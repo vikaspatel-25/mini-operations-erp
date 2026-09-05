@@ -97,3 +97,46 @@ export async function createCustomerOrder({
         client.release();
     }
 }
+
+export async function getOrderData() {
+    const ordersResult = await pool.query(`
+        SELECT
+            co.id,
+            co.order_number,
+            co.created_at,
+            u.name AS created_by,
+            coi.quantity,
+            it.name AS item
+        FROM customer_orders co
+        JOIN users u
+            ON co.created_by = u.id
+        JOIN customer_order_items coi
+            ON co.id = coi.order_id
+        JOIN items it
+            ON coi.item_id = it.id
+        ORDER BY co.id DESC
+    `);
+
+    const itemsResult = await pool.query(`
+        SELECT
+            it.id,
+            it.name,
+            c.name AS category
+        FROM items it
+        JOIN categories c
+            ON it.category_id = c.id
+        ORDER BY it.name
+    `);
+
+    const locationsResult = await pool.query(`
+        SELECT id, name
+        FROM locations
+        ORDER BY name
+    `);
+
+    return {
+        orders: ordersResult.rows,
+        items: itemsResult.rows,
+        locations: locationsResult.rows
+    };
+}

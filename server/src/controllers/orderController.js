@@ -1,4 +1,20 @@
-import { createCustomerOrder } from "../services/orderService.js";
+import { createCustomerOrder,getOrderData } from "../services/orderService.js";
+
+
+export async function getOrdersRequest(req, res) {
+    try {
+        const data = await getOrderData();
+
+        return res.status(200).json(data);
+
+    } catch (error) {
+        console.error("Get orders error:", error);
+
+        return res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+}
 
 export async function createOrder(req, res) {
     try {
