@@ -1,7 +1,7 @@
 import pool from "../config/db.js";
 
 export async function getWorkOrderData() {
-    const workOrdersResult = await pool.query(`
+  const workOrdersResult = await pool.query(`
         SELECT
             wo.id,
             wo.work_order_number,
@@ -37,13 +37,13 @@ export async function getWorkOrderData() {
         ORDER BY wo.id DESC
     `);
 
-    const locationsResult = await pool.query(`
+  const locationsResult = await pool.query(`
         SELECT id, name
         FROM locations
         ORDER BY name
     `);
 
-    const itemsResult = await pool.query(`
+  const itemsResult = await pool.query(`
         SELECT
             it.id,
             it.name,
@@ -54,7 +54,7 @@ export async function getWorkOrderData() {
         ORDER BY it.name
     `);
 
-    const usersResult = await pool.query(`
+  const usersResult = await pool.query(`
         SELECT
             id,
             name,
@@ -63,24 +63,23 @@ export async function getWorkOrderData() {
         ORDER BY name
     `);
 
-    return {
-        workOrders: workOrdersResult.rows,
-        locations: locationsResult.rows,
-        items: itemsResult.rows,
-        users: usersResult.rows
-    };
+  return {
+    workOrders: workOrdersResult.rows,
+    locations: locationsResult.rows,
+    items: itemsResult.rows,
+    users: usersResult.rows,
+  };
 }
 
-
 export async function createWorkOrder({
-    workOrderNumber,
-    locationId,
-    itemId,
-    requiredQuantity,
-    assignedUserId
+  workOrderNumber,
+  locationId,
+  itemId,
+  requiredQuantity,
+  assignedUserId,
 }) {
-    const result = await pool.query(
-        `
+  const result = await pool.query(
+    `
         SELECT
             COALESCE(
                 SUM(
@@ -92,19 +91,15 @@ export async function createWorkOrder({
         WHERE location_id = $1
           AND item_id = $2
         `,
-        [locationId, itemId]
-    );
+    [locationId, itemId],
+  );
 
-    const availableQuantity =
-        Number(result.rows[0].available_quantity);
+  const availableQuantity = Number(result.rows[0].available_quantity);
 
-    const shortage = Math.max(
-        requiredQuantity - availableQuantity,
-        0
-    );
+  const shortage = Math.max(requiredQuantity - availableQuantity, 0);
 
-    const workOrderResult = await pool.query(
-        `
+  const workOrderResult = await pool.query(
+    `
         INSERT INTO work_orders (
             work_order_number,
             location_id,
@@ -123,18 +118,12 @@ export async function createWorkOrder({
         )
         RETURNING *
         `,
-        [
-            workOrderNumber,
-            locationId,
-            itemId,
-            requiredQuantity,
-            assignedUserId
-        ]
-    );
+    [workOrderNumber, locationId, itemId, requiredQuantity, assignedUserId],
+  );
 
-    return {
-        workOrder: workOrderResult.rows[0],
-        availableQuantity,
-        shortage
-    };
+  return {
+    workOrder: workOrderResult.rows[0],
+    availableQuantity,
+    shortage,
+  };
 }
