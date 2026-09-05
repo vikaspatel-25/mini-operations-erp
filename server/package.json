@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon src/index.js",
+    "dev": "nodemon src/dev.index.js",
     "start": "node src/index.js",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
