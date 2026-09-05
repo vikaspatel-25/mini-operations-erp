@@ -1,5 +1,64 @@
 import pool from "../config/db.js";
 
+
+export async function getTransferData() {
+    const transfersResult = await pool.query(`
+        SELECT
+            st.id,
+            st.transfer_number,
+            sl.name AS source_location,
+            dl.name AS destination_location,
+            it.name AS item,
+            b.batch_number AS batch,
+            st.quantity,
+            st.status
+        FROM stock_transfers st
+        JOIN locations sl
+            ON st.source_location_id = sl.id
+        JOIN locations dl
+            ON st.destination_location_id = dl.id
+        JOIN items it
+            ON st.item_id = it.id
+        JOIN batches b
+            ON st.batch_id = b.id
+        ORDER BY st.id DESC
+    `);
+
+    const locationsResult = await pool.query(`
+        SELECT id, name
+        FROM locations
+        ORDER BY name
+    `);
+
+    const itemsResult = await pool.query(`
+        SELECT
+            it.id,
+            it.name,
+            c.name AS category
+        FROM items it
+        JOIN categories c
+            ON it.category_id = c.id
+        ORDER BY it.name
+    `);
+
+    const batchesResult = await pool.query(`
+        SELECT
+            id,
+            batch_number,
+            item_id
+        FROM batches
+        ORDER BY batch_number
+    `);
+
+    return {
+        transfers: transfersResult.rows,
+        locations: locationsResult.rows,
+        items: itemsResult.rows,
+        batches: batchesResult.rows
+    };
+}
+
+
 export async function createTransfer({
     transferNumber,
     sourceLocationId,

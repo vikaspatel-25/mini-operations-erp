@@ -12,8 +12,12 @@ import workOrderRoutes from "./routes/workOrderRoutes.js";
 const app = express();
 const PORT = process.env.PORT || 7002;
 
-app.use(cors());
-app.use(express.json());
+app.use(
+    cors({
+        origin: process.env.CLIENT_URL,
+        credentials: true
+    })
+);app.use(express.json());
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);

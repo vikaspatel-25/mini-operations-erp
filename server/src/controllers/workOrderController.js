@@ -1,4 +1,24 @@
-import { createWorkOrder } from "../services/workOrderService.js";
+import {
+    getWorkOrderData,
+    createWorkOrder
+} from "../services/workOrderService.js";
+
+
+export async function getWorkOrdersRequest(req, res) {
+    try {
+        const data = await getWorkOrderData();
+
+        return res.status(200).json(data);
+
+    } catch (error) {
+        console.error("Get work orders error:", error);
+
+        return res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+}
+
 
 export async function createWorkOrderRequest(req, res) {
     try {
