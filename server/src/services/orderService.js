@@ -1,19 +1,19 @@
 import pool from "../config/db.js";
 
 export async function createCustomerOrder({
-    orderNumber,
-    itemId,
-    locationId,
-    quantity,
-    userId
+  orderNumber,
+  itemId,
+  locationId,
+  quantity,
+  userId,
 }) {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-        const inventoryResult = await client.query(
-            `
+    const inventoryResult = await client.query(
+      `
             SELECT
                 id,
                 physical_quantity,
@@ -23,36 +23,35 @@ export async function createCustomerOrder({
               AND location_id = $2
             FOR UPDATE
             `,
-            [itemId, locationId]
-        );
+      [itemId, locationId],
+    );
 
-        if (inventoryResult.rows.length === 0) {
-            throw new Error("Inventory not found");
-        }
+    if (inventoryResult.rows.length === 0) {
+      throw new Error("Inventory not found");
+    }
 
-        const inventory = inventoryResult.rows[0];
+    const inventory = inventoryResult.rows[0];
 
-        const availableQuantity =
-            inventory.physical_quantity -
-            inventory.reserved_quantity;
+    const availableQuantity =
+      inventory.physical_quantity - inventory.reserved_quantity;
 
-        if (quantity > availableQuantity) {
-            throw new Error("Insufficient available stock");
-        }
+    if (quantity > availableQuantity) {
+      throw new Error("Insufficient available stock");
+    }
 
-        await client.query(
-            `
+    await client.query(
+      `
             UPDATE inventory
             SET
                 reserved_quantity = reserved_quantity + $1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             `,
-            [quantity, inventory.id]
-        );
+      [quantity, inventory.id],
+    );
 
-        const orderResult = await client.query(
-            `
+    const orderResult = await client.query(
+      `
             INSERT INTO customer_orders (
                 order_number,
                 created_by
@@ -60,13 +59,13 @@ export async function createCustomerOrder({
             VALUES ($1, $2)
             RETURNING id, order_number, created_by, created_at
             `,
-            [orderNumber, userId]
-        );
+      [orderNumber, userId],
+    );
 
-        const order = orderResult.rows[0];
+    const order = orderResult.rows[0];
 
-        await client.query(
-            `
+    await client.query(
+      `
             INSERT INTO customer_order_items (
                 order_id,
                 item_id,
@@ -74,32 +73,27 @@ export async function createCustomerOrder({
             )
             VALUES ($1, $2, $3)
             `,
-            [
-                order.id,
-                itemId,
-                quantity
-            ]
-        );
+      [order.id, itemId, quantity],
+    );
 
-        await client.query("COMMIT");
+    await client.query("COMMIT");
 
-        return {
-            ...order,
-            itemId,
-            quantity,
-            inventoryId: inventory.id
-        };
-
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    return {
+      ...order,
+      itemId,
+      quantity,
+      inventoryId: inventory.id,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getOrderData() {
-    const ordersResult = await pool.query(`
+  const ordersResult = await pool.query(`
         SELECT
             co.id,
             co.order_number,
@@ -117,7 +111,7 @@ export async function getOrderData() {
         ORDER BY co.id DESC
     `);
 
-    const itemsResult = await pool.query(`
+  const itemsResult = await pool.query(`
         SELECT
             it.id,
             it.name,
@@ -128,15 +122,15 @@ export async function getOrderData() {
         ORDER BY it.name
     `);
 
-    const locationsResult = await pool.query(`
+  const locationsResult = await pool.query(`
         SELECT id, name
         FROM locations
         ORDER BY name
     `);
 
-    return {
-        orders: ordersResult.rows,
-        items: itemsResult.rows,
-        locations: locationsResult.rows
-    };
+  return {
+    orders: ordersResult.rows,
+    items: itemsResult.rows,
+    locations: locationsResult.rows,
+  };
 }

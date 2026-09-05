@@ -1,7 +1,7 @@
 import pool from "../config/db.js";
 
 export async function getInventory() {
-    const result = await pool.query(`
+  const result = await pool.query(`
         SELECT
             i.id,
             it.name AS item,
@@ -23,22 +23,22 @@ export async function getInventory() {
         ORDER BY i.id;
     `);
 
-    return result.rows;
+  return result.rows;
 }
 
 export async function adjustInventory({
-    inventoryId,
-    quantity,
-    transactionId,
-    userId
+  inventoryId,
+  quantity,
+  transactionId,
+  userId,
 }) {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-        const inventoryResult = await client.query(
-            `
+    const inventoryResult = await client.query(
+      `
             SELECT
                 id,
                 physical_quantity,
@@ -47,68 +47,61 @@ export async function adjustInventory({
             WHERE id = $1
             FOR UPDATE
             `,
-            [inventoryId]
-        );
+      [inventoryId],
+    );
 
-        if (inventoryResult.rows.length === 0) {
-            throw new Error("Inventory not found");
-        }
+    if (inventoryResult.rows.length === 0) {
+      throw new Error("Inventory not found");
+    }
 
-        const inventory = inventoryResult.rows[0];
+    const inventory = inventoryResult.rows[0];
 
-        const newPhysicalQuantity =
-            inventory.physical_quantity + quantity;
+    const newPhysicalQuantity = inventory.physical_quantity + quantity;
 
-        if (newPhysicalQuantity < 0) {
-            throw new Error("Insufficient physical stock");
-        }
+    if (newPhysicalQuantity < 0) {
+      throw new Error("Insufficient physical stock");
+    }
 
-        if (newPhysicalQuantity < inventory.reserved_quantity) {
-            throw new Error(
-                "Physical quantity cannot be less than reserved quantity"
-            );
-        }
+    if (newPhysicalQuantity < inventory.reserved_quantity) {
+      throw new Error(
+        "Physical quantity cannot be less than reserved quantity",
+      );
+    }
 
-        await client.query(
-            `
+    await client.query(
+      `
             UPDATE inventory
             SET
                 physical_quantity = $1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             `,
-            [newPhysicalQuantity, inventoryId]
-        );
+      [newPhysicalQuantity, inventoryId],
+    );
 
-        await client.query(
-            `
+    await client.query(
+      `
             INSERT INTO inventory_transactions
                 (transaction_id, inventory_id, quantity, created_by)
             VALUES
                 ($1, $2, $3, $4)
             `,
-            [
-                transactionId,
-                inventoryId,
-                quantity,
-                userId
-            ]
-        );
+      [transactionId, inventoryId, quantity, userId],
+    );
 
-        await client.query("COMMIT");
+    await client.query("COMMIT");
 
-        return {
-            inventoryId,
-            previousQuantity: inventory.physical_quantity,
-            newQuantity: newPhysicalQuantity,
-            adjustment: quantity,
-            transactionId
-        };
-
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    return {
+      inventoryId,
+      previousQuantity: inventory.physical_quantity,
+      newQuantity: newPhysicalQuantity,
+      adjustment: quantity,
+      transactionId,
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
