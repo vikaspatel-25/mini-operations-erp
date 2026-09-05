@@ -7,7 +7,7 @@ A full-stack Operations ERP portal for managing multi-location inventory, work o
 ## 🌐 Live Deployments & Repository Links
 
 * **Live Web Portal (Frontend):** https://mini-operations-erp-mjtz.vercel.app
-* **Backend REST API:** https://mini-operations-erp-jade.vercel.app
+* **Backend REST API:** https://mini-operations-erp-jade.vercel.app/api/health
 * **GitHub Repository:** https://github.com/vikaspatel-25/mini-operations-erp
 
 ---
