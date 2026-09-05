@@ -4,6 +4,7 @@ import cors from "cors";
 import pool from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import cookieParser from "cookie-parser";
+import inventoryRoutes from "./routes/inventoryRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 7002;
@@ -12,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
 app.use("/api/auth", authRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 app.get("/api/health", (req, res) => {
     res.json({
