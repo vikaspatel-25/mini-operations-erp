@@ -1,4 +1,23 @@
-import { createTransfer,dispatchTransfer,receiveTransfer } from "../services/transferService.js";
+import { createTransfer,dispatchTransfer,receiveTransfer,getTransferData
+ } from "../services/transferService.js";
+
+
+
+export async function getTransfersRequest(req, res) {
+    try {
+        const data = await getTransferData();
+
+        return res.status(200).json(data);
+
+    } catch (error) {
+        console.error("Get transfers error:", error);
+
+        return res.status(500).json({
+            message: "Internal server error"
+        });
+    }
+}
+ 
 
 export async function createTransferRequest(req, res) {
     try {
