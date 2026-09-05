@@ -7,6 +7,7 @@ import cookieParser from "cookie-parser";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
 import transferRoutes from "./routes/transferRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
+import workOrderRoutes from "./routes/workOrderRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 7002;
@@ -18,7 +19,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/transfers", transferRoutes);
 app.use("/api/orders", orderRoutes);
-
+app.use("/api/work-orders", workOrderRoutes);
 
 app.get("/api/health", (req, res) => {
     res.json({
