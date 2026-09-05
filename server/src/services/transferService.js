@@ -1,8 +1,7 @@
 import pool from "../config/db.js";
 
-
 export async function getTransferData() {
-    const transfersResult = await pool.query(`
+  const transfersResult = await pool.query(`
         SELECT
             st.id,
             st.transfer_number,
@@ -24,13 +23,13 @@ export async function getTransferData() {
         ORDER BY st.id DESC
     `);
 
-    const locationsResult = await pool.query(`
+  const locationsResult = await pool.query(`
         SELECT id, name
         FROM locations
         ORDER BY name
     `);
 
-    const itemsResult = await pool.query(`
+  const itemsResult = await pool.query(`
         SELECT
             it.id,
             it.name,
@@ -41,7 +40,7 @@ export async function getTransferData() {
         ORDER BY it.name
     `);
 
-    const batchesResult = await pool.query(`
+  const batchesResult = await pool.query(`
         SELECT
             id,
             batch_number,
@@ -50,30 +49,29 @@ export async function getTransferData() {
         ORDER BY batch_number
     `);
 
-    return {
-        transfers: transfersResult.rows,
-        locations: locationsResult.rows,
-        items: itemsResult.rows,
-        batches: batchesResult.rows
-    };
+  return {
+    transfers: transfersResult.rows,
+    locations: locationsResult.rows,
+    items: itemsResult.rows,
+    batches: batchesResult.rows,
+  };
 }
 
-
 export async function createTransfer({
-    transferNumber,
-    sourceLocationId,
-    destinationLocationId,
-    itemId,
-    batchId,
-    quantity
+  transferNumber,
+  sourceLocationId,
+  destinationLocationId,
+  itemId,
+  batchId,
+  quantity,
 }) {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-        const inventoryResult = await client.query(
-            `
+    const inventoryResult = await client.query(
+      `
             SELECT
                 id,
                 physical_quantity,
@@ -84,29 +82,24 @@ export async function createTransfer({
               AND batch_id = $3
             FOR UPDATE
             `,
-            [
-                sourceLocationId,
-                itemId,
-                batchId
-            ]
-        );
+      [sourceLocationId, itemId, batchId],
+    );
 
-        if (inventoryResult.rows.length === 0) {
-            throw new Error("Source inventory not found");
-        }
+    if (inventoryResult.rows.length === 0) {
+      throw new Error("Source inventory not found");
+    }
 
-        const inventory = inventoryResult.rows[0];
+    const inventory = inventoryResult.rows[0];
 
-        const availableQuantity =
-            inventory.physical_quantity -
-            inventory.reserved_quantity;
+    const availableQuantity =
+      inventory.physical_quantity - inventory.reserved_quantity;
 
-        if (quantity > availableQuantity) {
-            throw new Error("Insufficient available stock");
-        }
+    if (quantity > availableQuantity) {
+      throw new Error("Insufficient available stock");
+    }
 
-        const transferResult = await client.query(
-            `
+    const transferResult = await client.query(
+      `
             INSERT INTO stock_transfers (
                 transfer_number,
                 source_location_id,
@@ -119,36 +112,35 @@ export async function createTransfer({
             VALUES ($1, $2, $3, $4, $5, $6, 'REQUESTED')
             RETURNING *
             `,
-            [
-                transferNumber,
-                sourceLocationId,
-                destinationLocationId,
-                itemId,
-                batchId,
-                quantity
-            ]
-        );
+      [
+        transferNumber,
+        sourceLocationId,
+        destinationLocationId,
+        itemId,
+        batchId,
+        quantity,
+      ],
+    );
 
-        await client.query("COMMIT");
+    await client.query("COMMIT");
 
-        return transferResult.rows[0];
-
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    return transferResult.rows[0];
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function dispatchTransfer(transferId, userId) {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-        const transferResult = await client.query(
-            `
+    const transferResult = await client.query(
+      `
             SELECT
                 id,
                 transfer_number,
@@ -162,23 +154,21 @@ export async function dispatchTransfer(transferId, userId) {
             WHERE id = $1
             FOR UPDATE
             `,
-            [transferId]
-        );
+      [transferId],
+    );
 
-        if (transferResult.rows.length === 0) {
-            throw new Error("Transfer not found");
-        }
+    if (transferResult.rows.length === 0) {
+      throw new Error("Transfer not found");
+    }
 
-        const transfer = transferResult.rows[0];
+    const transfer = transferResult.rows[0];
 
-        if (transfer.status !== "REQUESTED") {
-            throw new Error(
-                "Only requested transfers can be dispatched"
-            );
-        }
+    if (transfer.status !== "REQUESTED") {
+      throw new Error("Only requested transfers can be dispatched");
+    }
 
-        const inventoryResult = await client.query(
-            `
+    const inventoryResult = await client.query(
+      `
             SELECT
                 id,
                 physical_quantity,
@@ -189,88 +179,79 @@ export async function dispatchTransfer(transferId, userId) {
               AND batch_id = $3
             FOR UPDATE
             `,
-            [
-                transfer.source_location_id,
-                transfer.item_id,
-                transfer.batch_id
-            ]
-        );
+      [transfer.source_location_id, transfer.item_id, transfer.batch_id],
+    );
 
-        if (inventoryResult.rows.length === 0) {
-            throw new Error("Source inventory not found");
-        }
+    if (inventoryResult.rows.length === 0) {
+      throw new Error("Source inventory not found");
+    }
 
-        const inventory = inventoryResult.rows[0];
+    const inventory = inventoryResult.rows[0];
 
-        const availableQuantity =
-            inventory.physical_quantity -
-            inventory.reserved_quantity;
+    const availableQuantity =
+      inventory.physical_quantity - inventory.reserved_quantity;
 
-        if (transfer.quantity > availableQuantity) {
-            throw new Error("Insufficient available stock");
-        }
+    if (transfer.quantity > availableQuantity) {
+      throw new Error("Insufficient available stock");
+    }
 
-        await client.query(
-            `
+    await client.query(
+      `
             UPDATE inventory
             SET
                 physical_quantity = physical_quantity - $1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             `,
-            [
-                transfer.quantity,
-                inventory.id
-            ]
-        );
+      [transfer.quantity, inventory.id],
+    );
 
-        await client.query(
-            `
+    await client.query(
+      `
             UPDATE stock_transfers
             SET status = 'DISPATCHED'
             WHERE id = $1
             `,
-            [transferId]
-        );
+      [transferId],
+    );
 
-        await client.query(
-            `
+    await client.query(
+      `
             INSERT INTO inventory_transactions
                 (transaction_id, inventory_id, quantity, created_by)
             VALUES
                 ($1, $2, $3, $4)
             `,
-            [
-                `TRANSFER-${transfer.transfer_number}`,
-                inventory.id,
-                -transfer.quantity,
-                userId
-            ]
-        );
+      [
+        `TRANSFER-${transfer.transfer_number}`,
+        inventory.id,
+        -transfer.quantity,
+        userId,
+      ],
+    );
 
-        await client.query("COMMIT");
+    await client.query("COMMIT");
 
-        return {
-            transferId: transfer.id,
-            status: "DISPATCHED"
-        };
-
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    return {
+      transferId: transfer.id,
+      status: "DISPATCHED",
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function receiveTransfer(transferId, userId) {
-    const client = await pool.connect();
+  const client = await pool.connect();
 
-    try {
-        await client.query("BEGIN");
+  try {
+    await client.query("BEGIN");
 
-        const transferResult = await client.query(
-            `
+    const transferResult = await client.query(
+      `
             SELECT
                 id,
                 transfer_number,
@@ -284,23 +265,21 @@ export async function receiveTransfer(transferId, userId) {
             WHERE id = $1
             FOR UPDATE
             `,
-            [transferId]
-        );
+      [transferId],
+    );
 
-        if (transferResult.rows.length === 0) {
-            throw new Error("Transfer not found");
-        }
+    if (transferResult.rows.length === 0) {
+      throw new Error("Transfer not found");
+    }
 
-        const transfer = transferResult.rows[0];
+    const transfer = transferResult.rows[0];
 
-        if (transfer.status !== "DISPATCHED") {
-            throw new Error(
-                "Only dispatched transfers can be received"
-            );
-        }
+    if (transfer.status !== "DISPATCHED") {
+      throw new Error("Only dispatched transfers can be received");
+    }
 
-        const inventoryResult = await client.query(
-            `
+    const inventoryResult = await client.query(
+      `
             SELECT
                 id,
                 physical_quantity,
@@ -311,68 +290,60 @@ export async function receiveTransfer(transferId, userId) {
               AND batch_id = $3
             FOR UPDATE
             `,
-            [
-                transfer.destination_location_id,
-                transfer.item_id,
-                transfer.batch_id
-            ]
-        );
+      [transfer.destination_location_id, transfer.item_id, transfer.batch_id],
+    );
 
-        if (inventoryResult.rows.length === 0) {
-            throw new Error("Destination inventory not found");
-        }
+    if (inventoryResult.rows.length === 0) {
+      throw new Error("Destination inventory not found");
+    }
 
-        const inventory = inventoryResult.rows[0];
+    const inventory = inventoryResult.rows[0];
 
-        await client.query(
-            `
+    await client.query(
+      `
             UPDATE inventory
             SET
                 physical_quantity = physical_quantity + $1,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = $2
             `,
-            [
-                transfer.quantity,
-                inventory.id
-            ]
-        );
+      [transfer.quantity, inventory.id],
+    );
 
-        await client.query(
-            `
+    await client.query(
+      `
             UPDATE stock_transfers
             SET status = 'RECEIVED'
             WHERE id = $1
             `,
-            [transferId]
-        );
+      [transferId],
+    );
 
-        await client.query(
-            `
+    await client.query(
+      `
             INSERT INTO inventory_transactions
                 (transaction_id, inventory_id, quantity, created_by)
             VALUES
                 ($1, $2, $3, $4)
             `,
-            [
-                `TRANSFER-${transfer.transfer_number}-RECEIPT`,
-                inventory.id,
-                transfer.quantity,
-                userId
-            ]
-        );
+      [
+        `TRANSFER-${transfer.transfer_number}-RECEIPT`,
+        inventory.id,
+        transfer.quantity,
+        userId,
+      ],
+    );
 
-        await client.query("COMMIT");
+    await client.query("COMMIT");
 
-        return {
-            transferId: transfer.id,
-            status: "RECEIVED"
-        };
-
-    } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-    } finally {
-        client.release();
-    }
+    return {
+      transferId: transfer.id,
+      status: "RECEIVED",
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
