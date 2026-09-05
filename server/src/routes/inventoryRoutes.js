@@ -12,7 +12,7 @@ router.get("/", requireAuth, getInventoryList);
 router.post(
   "/adjust",
   requireAuth,
-  requireRole("OPERATIONS"),
+  requireRole("ADMIN","OPERATIONS"),
   adjustInventoryStock,
 );
 
