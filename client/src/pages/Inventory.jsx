@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
     getInventory,
     adjustInventory
 } from "@/services/inventoryService.js";
+import API_URL from "@/services/api";
 
 function Inventory() {
+    const navigate = useNavigate();
+
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -14,6 +17,7 @@ function Inventory() {
     const [quantity, setQuantity] = useState("");
     const [transactionId, setTransactionId] = useState("");
     const [adjusting, setAdjusting] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const loadInventory = async () => {
         try {
@@ -34,6 +38,42 @@ function Inventory() {
         loadInventory();
     }, []);
 
+    const generateTransactionId = () => {
+        const timestamp = Date.now();
+        const random = Math.floor(1000 + Math.random() * 9000);
+
+        return `INV-TXN-${timestamp}-${random}`;
+    };
+
+    const openAdjustModal = (row) => {
+        setSelectedInventory(row);
+        setQuantity("");
+        setTransactionId(generateTransactionId());
+        setCopied(false);
+        setError("");
+    };
+
+    const closeAdjustModal = () => {
+        setSelectedInventory(null);
+        setQuantity("");
+        setTransactionId("");
+        setCopied(false);
+    };
+
+    const copyTransactionId = async () => {
+        try {
+            await navigator.clipboard.writeText(transactionId);
+
+            setCopied(true);
+
+            setTimeout(() => {
+                setCopied(false);
+            }, 1500);
+        } catch (error) {
+            console.error("Failed to copy transaction ID:", error);
+        }
+    };
+
     const handleAdjust = async (event) => {
         event.preventDefault();
 
@@ -47,9 +87,7 @@ function Inventory() {
                 transactionId
             );
 
-            setSelectedInventory(null);
-            setQuantity("");
-            setTransactionId("");
+            closeAdjustModal();
 
             await loadInventory();
         } catch (error) {
@@ -59,146 +97,106 @@ function Inventory() {
         }
     };
 
+    const handleLogout = async () => {
+        try {
+            await fetch(`${API_URL}/auth/logout`, {
+                method: "POST",
+                credentials: "include"
+            });
+        } catch (error) {
+            console.error("Logout error:", error);
+        } finally {
+            navigate("/login");
+        }
+    };
+
     return (
-        <div
-            style={{
-                minHeight: "100vh",
-                backgroundColor: "#f8fafc",
-                padding: "32px"
-            }}
-        >
-            <nav
-                style={{
-                    backgroundColor: "#ffffff",
-                    borderBottom: "1px solid #e2e8f0",
-                    padding: "14px 32px",
-                    margin: "-32px -32px 32px"
-                }}
-            >
-                <div
-                    style={{
-                        maxWidth: "1200px",
-                        margin: "0 auto",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "24px"
-                    }}
-                >
-                    <strong
-                        style={{
-                            marginRight: "20px"
-                        }}
-                    >
-                        Operations ERP
-                    </strong>
-
-                    <Link to="/inventory" style={navLinkStyle}>
-                        Inventory
+        <div style={pageStyle}>
+            <nav style={navStyle}>
+                <div style={navInnerStyle}>
+                    <Link to="/inventory" style={brandStyle}>
+                        <span style={brandAccentStyle}>
+                            Operations
+                        </span>{" "}
+                        ERP
                     </Link>
 
-                    <Link to="/work-orders" style={navLinkStyle}>
-                        Work Orders
-                    </Link>
+                    <div style={navRightStyle}>
+                        <div style={navLinksStyle}>
+                            <Link
+                                to="/inventory"
+                                style={{
+                                    ...navLinkStyle,
+                                    ...activeNavLinkStyle
+                                }}
+                            >
+                                Inventory
+                            </Link>
 
-                    <Link to="/transfers" style={navLinkStyle}>
-                        Transfers
-                    </Link>
+                            <Link
+                                to="/work-orders"
+                                style={navLinkStyle}
+                            >
+                                Work Orders
+                            </Link>
 
-                    <Link to="/orders" style={navLinkStyle}>
-                        Customer Orders
-                    </Link>
+                            <Link
+                                to="/transfers"
+                                style={navLinkStyle}
+                            >
+                                Transfers
+                            </Link>
+
+                            <Link
+                                to="/orders"
+                                style={navLinkStyle}
+                            >
+                                Customer Orders
+                            </Link>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            style={logoutButtonStyle}
+                        >
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </nav>
 
-            <div
-                style={{
-                    maxWidth: "1200px",
-                    margin: "0 auto"
-                }}
-            >
-                <div style={{ marginBottom: "24px" }}>
-                    <h1
-                        style={{
-                            margin: 0,
-                            fontSize: "26px",
-                            fontWeight: "600"
-                        }}
-                    >
+            <main style={mainStyle}>
+                <div style={pageHeaderStyle}>
+                    <h1 style={titleStyle}>
                         Inventory
                     </h1>
 
-                    <p
-                        style={{
-                            margin: "6px 0 0",
-                            color: "#64748b",
-                            fontSize: "14px"
-                        }}
-                    >
+                    <p style={subtitleStyle}>
                         View and manage inventory stock
                     </p>
                 </div>
 
                 {error && (
-                    <div
-                        style={{
-                            marginBottom: "20px",
-                            padding: "10px 14px",
-                            backgroundColor: "#fef2f2",
-                            border: "1px solid #fecaca",
-                            borderRadius: "8px",
-                            color: "#dc2626",
-                            fontSize: "14px"
-                        }}
-                    >
+                    <div style={errorStyle}>
                         {error}
                     </div>
                 )}
 
-                <div
-                    style={{
-                        backgroundColor: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "10px",
-                        overflow: "hidden"
-                    }}
-                >
+                <div style={tableContainerStyle}>
                     {loading ? (
-                        <div
-                            style={{
-                                padding: "40px",
-                                textAlign: "center",
-                                color: "#64748b"
-                            }}
-                        >
+                        <div style={messageStyle}>
                             Loading inventory...
                         </div>
                     ) : inventory.length === 0 ? (
-                        <div
-                            style={{
-                                padding: "40px",
-                                textAlign: "center",
-                                color: "#64748b"
-                            }}
-                        >
+                        <div style={messageStyle}>
                             No inventory found.
                         </div>
                     ) : (
-                        <div style={{ overflowX: "auto" }}>
-                            <table
-                                style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                    fontSize: "14px"
-                                }}
-                            >
+                        <div style={tableScrollStyle}>
+                            <table style={tableStyle}>
                                 <thead>
-                                    <tr
-                                        style={{
-                                            backgroundColor: "#f8fafc",
-                                            borderBottom:
-                                                "1px solid #e2e8f0"
-                                        }}
-                                    >
+                                    <tr>
                                         <th style={headerStyle}>
                                             Item
                                         </th>
@@ -215,19 +213,39 @@ function Inventory() {
                                             Batch
                                         </th>
 
-                                        <th style={headerStyle}>
+                                        <th
+                                            style={{
+                                                ...headerStyle,
+                                                textAlign: "right"
+                                            }}
+                                        >
                                             Physical
                                         </th>
 
-                                        <th style={headerStyle}>
+                                        <th
+                                            style={{
+                                                ...headerStyle,
+                                                textAlign: "right"
+                                            }}
+                                        >
                                             Reserved
                                         </th>
 
-                                        <th style={headerStyle}>
+                                        <th
+                                            style={{
+                                                ...headerStyle,
+                                                textAlign: "right"
+                                            }}
+                                        >
                                             Available
                                         </th>
 
-                                        <th style={headerStyle}>
+                                        <th
+                                            style={{
+                                                ...headerStyle,
+                                                textAlign: "center"
+                                            }}
+                                        >
                                             Action
                                         </th>
                                     </tr>
@@ -237,62 +255,90 @@ function Inventory() {
                                     {inventory.map((row) => (
                                         <tr
                                             key={row.id}
-                                            style={{
-                                                borderBottom:
-                                                    "1px solid #f1f5f9"
-                                            }}
+                                            style={rowStyle}
                                         >
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    minWidth: "280px",
+                                                    fontWeight: "500",
+                                                    color: "#0f172a"
+                                                }}
+                                            >
                                                 {row.item}
                                             </td>
 
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    minWidth: "150px"
+                                                }}
+                                            >
                                                 {row.category}
                                             </td>
 
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    minWidth: "140px"
+                                                }}
+                                            >
                                                 {row.location}
                                             </td>
 
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    minWidth: "150px"
+                                                }}
+                                            >
                                                 {row.batch}
                                             </td>
 
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    textAlign: "right",
+                                                    minWidth: "110px"
+                                                }}
+                                            >
                                                 {row.physical_quantity}
                                             </td>
 
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    textAlign: "right",
+                                                    minWidth: "110px"
+                                                }}
+                                            >
                                                 {row.reserved_quantity}
                                             </td>
 
                                             <td
                                                 style={{
                                                     ...cellStyle,
-                                                    fontWeight: "600"
+                                                    textAlign: "right",
+                                                    minWidth: "110px",
+                                                    fontWeight: "600",
+                                                    color: "#0f172a"
                                                 }}
                                             >
                                                 {row.available_quantity}
                                             </td>
 
-                                            <td style={cellStyle}>
+                                            <td
+                                                style={{
+                                                    ...cellStyle,
+                                                    textAlign: "center",
+                                                    minWidth: "120px"
+                                                }}
+                                            >
                                                 <button
                                                     onClick={() =>
-                                                        setSelectedInventory(
-                                                            row
-                                                        )
+                                                        openAdjustModal(row)
                                                     }
-                                                    style={{
-                                                        border:
-                                                            "1px solid #cbd5e1",
-                                                        backgroundColor:
-                                                            "#ffffff",
-                                                        borderRadius: "6px",
-                                                        padding:
-                                                            "6px 10px",
-                                                        cursor: "pointer",
-                                                        fontSize: "13px"
-                                                    }}
+                                                    style={adjustButtonStyle}
                                                 >
                                                     Adjust
                                                 </button>
@@ -304,54 +350,22 @@ function Inventory() {
                         </div>
                     )}
                 </div>
-            </div>
+            </main>
 
             {selectedInventory && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        backgroundColor:
-                            "rgba(15, 23, 42, 0.35)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "20px"
-                    }}
-                >
-                    <div
-                        style={{
-                            width: "100%",
-                            maxWidth: "400px",
-                            backgroundColor: "#ffffff",
-                            borderRadius: "10px",
-                            padding: "24px",
-                            boxShadow:
-                                "0 10px 30px rgba(0, 0, 0, 0.12)"
-                        }}
-                    >
-                        <h2
-                            style={{
-                                margin: "0 0 6px",
-                                fontSize: "20px"
-                            }}
-                        >
+                <div style={modalOverlayStyle}>
+                    <div style={modalStyle}>
+                        <h2 style={modalTitleStyle}>
                             Adjust Inventory
                         </h2>
 
-                        <p
-                            style={{
-                                margin: "0 0 20px",
-                                color: "#64748b",
-                                fontSize: "14px"
-                            }}
-                        >
+                        <p style={modalSubtitleStyle}>
                             {selectedInventory.item} -{" "}
                             {selectedInventory.location}
                         </p>
 
                         <form onSubmit={handleAdjust}>
-                            <div style={{ marginBottom: "16px" }}>
+                            <div style={fieldStyle}>
                                 <label style={labelStyle}>
                                     Quantity
                                 </label>
@@ -370,45 +384,44 @@ function Inventory() {
                                 />
                             </div>
 
-                            <div style={{ marginBottom: "20px" }}>
+                            <div
+                                style={{
+                                    ...fieldStyle,
+                                    marginBottom: "24px"
+                                }}
+                            >
                                 <label style={labelStyle}>
                                     Transaction ID
                                 </label>
 
-                                <input
-                                    type="text"
-                                    value={transactionId}
-                                    onChange={(event) =>
-                                        setTransactionId(
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="e.g. INV-001"
-                                    required
-                                    style={inputStyle}
-                                />
+                                <div style={transactionWrapperStyle}>
+                                    <input
+                                        type="text"
+                                        value={transactionId}
+                                        readOnly
+                                        style={transactionInputStyle}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={copyTransactionId}
+                                        style={copyButtonStyle}
+                                    >
+                                        {copied ? "Copied" : "Copy"}
+                                    </button>
+                                </div>
+
+                                <p style={transactionHintStyle}>
+                                    Generated automatically and cannot
+                                    be changed.
+                                </p>
                             </div>
 
-                            <div
-                                style={{
-                                    display: "flex",
-                                    gap: "10px"
-                                }}
-                            >
+                            <div style={modalActionsStyle}>
                                 <button
                                     type="button"
-                                    onClick={() =>
-                                        setSelectedInventory(null)
-                                    }
-                                    style={{
-                                        flex: 1,
-                                        height: "40px",
-                                        border:
-                                            "1px solid #cbd5e1",
-                                        backgroundColor: "#ffffff",
-                                        borderRadius: "7px",
-                                        cursor: "pointer"
-                                    }}
+                                    onClick={closeAdjustModal}
+                                    style={cancelButtonStyle}
                                 >
                                     Cancel
                                 </button>
@@ -417,15 +430,10 @@ function Inventory() {
                                     type="submit"
                                     disabled={adjusting}
                                     style={{
-                                        flex: 1,
-                                        height: "40px",
-                                        border: "none",
-                                        backgroundColor:
-                                            adjusting
-                                                ? "#64748b"
-                                                : "#0f172a",
-                                        color: "#ffffff",
-                                        borderRadius: "7px",
+                                        ...saveButtonStyle,
+                                        backgroundColor: adjusting
+                                            ? "#64748b"
+                                            : "#2563eb",
                                         cursor: adjusting
                                             ? "not-allowed"
                                             : "pointer"
@@ -444,23 +452,204 @@ function Inventory() {
     );
 }
 
-const navLinkStyle = {
-    textDecoration: "none",
-    color: "#334155",
-    fontSize: "14px",
-    fontWeight: "500"
+const pageStyle = {
+    minHeight: "100vh",
+    backgroundColor: "#f8fafc"
 };
 
-const headerStyle = {
-    textAlign: "left",
-    padding: "13px 16px",
-    color: "#475569",
+const navStyle = {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e2e8f0"
+};
+
+const navInnerStyle = {
+    width: "100%",
+    maxWidth: "1500px",
+    margin: "0 auto",
+    padding: "0 40px",
+    minHeight: "64px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between"
+};
+
+const brandStyle = {
+    textDecoration: "none",
+    fontSize: "18px",
+    fontWeight: "700",
+    color: "#0f172a",
+    letterSpacing: "-0.2px"
+};
+
+const brandAccentStyle = {
+    color: "#2563eb"
+};
+
+const navRightStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "28px"
+};
+
+const navLinksStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "28px"
+};
+
+const navLinkStyle = {
+    textDecoration: "none",
+    color: "#64748b",
+    fontSize: "14px",
+    fontWeight: "500",
+    padding: "23px 0"
+};
+
+const activeNavLinkStyle = {
+    color: "#2563eb",
     fontWeight: "600"
 };
 
+const logoutButtonStyle = {
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    borderRadius: "6px",
+    padding: "7px 14px",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "500"
+};
+
+const mainStyle = {
+    width: "100%",
+    maxWidth: "1500px",
+    margin: "0 auto",
+    padding: "40px 40px 60px"
+};
+
+const pageHeaderStyle = {
+    marginBottom: "26px"
+};
+
+const titleStyle = {
+    margin: 0,
+    fontSize: "28px",
+    fontWeight: "600",
+    color: "#0f172a"
+};
+
+const subtitleStyle = {
+    margin: "7px 0 0",
+    color: "#64748b",
+    fontSize: "14px"
+};
+
+const errorStyle = {
+    marginBottom: "20px",
+    padding: "12px 16px",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "8px",
+    color: "#dc2626",
+    fontSize: "14px"
+};
+
+const tableContainerStyle = {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "10px",
+    overflow: "hidden"
+};
+
+const tableScrollStyle = {
+    width: "100%",
+    overflowX: "auto"
+};
+
+const tableStyle = {
+    width: "100%",
+    minWidth: "1200px",
+    borderCollapse: "collapse",
+    fontSize: "14px"
+};
+
+const headerStyle = {
+    padding: "15px 20px",
+    textAlign: "left",
+    backgroundColor: "#f8fafc",
+    borderBottom: "1px solid #e2e8f0",
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: "600",
+    whiteSpace: "nowrap"
+};
+
+const rowStyle = {
+    borderBottom: "1px solid #f1f5f9"
+};
+
 const cellStyle = {
-    padding: "13px 16px",
-    color: "#334155"
+    padding: "16px 20px",
+    color: "#334155",
+    whiteSpace: "nowrap"
+};
+
+const adjustButtonStyle = {
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    borderRadius: "6px",
+    padding: "7px 14px",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "500"
+};
+
+const messageStyle = {
+    padding: "50px",
+    textAlign: "center",
+    color: "#64748b",
+    fontSize: "14px"
+};
+
+const modalOverlayStyle = {
+    position: "fixed",
+    inset: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.35)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "20px",
+    zIndex: 1000
+};
+
+const modalStyle = {
+    width: "100%",
+    maxWidth: "430px",
+    backgroundColor: "#ffffff",
+    borderRadius: "10px",
+    padding: "28px",
+    boxShadow: "0 12px 35px rgba(0, 0, 0, 0.14)"
+};
+
+const modalTitleStyle = {
+    margin: "0 0 6px",
+    fontSize: "20px",
+    fontWeight: "600",
+    color: "#0f172a"
+};
+
+const modalSubtitleStyle = {
+    margin: "0 0 24px",
+    color: "#64748b",
+    fontSize: "14px"
+};
+
+const fieldStyle = {
+    marginBottom: "18px"
 };
 
 const labelStyle = {
@@ -473,13 +662,77 @@ const labelStyle = {
 
 const inputStyle = {
     width: "100%",
-    height: "40px",
-    padding: "0 11px",
+    height: "42px",
+    padding: "0 12px",
     border: "1px solid #cbd5e1",
     borderRadius: "7px",
     fontSize: "14px",
-    boxSizing: "border-box",
+    color: "#0f172a",
     outline: "none"
+};
+
+const transactionWrapperStyle = {
+    display: "flex",
+    width: "100%"
+};
+
+const transactionInputStyle = {
+    flex: 1,
+    minWidth: 0,
+    height: "42px",
+    padding: "0 12px",
+    border: "1px solid #cbd5e1",
+    borderRight: "none",
+    borderRadius: "7px 0 0 7px",
+    backgroundColor: "#f8fafc",
+    color: "#475569",
+    fontSize: "13px",
+    outline: "none"
+};
+
+const copyButtonStyle = {
+    height: "42px",
+    padding: "0 14px",
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    borderRadius: "0 7px 7px 0",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "500"
+};
+
+const transactionHintStyle = {
+    margin: "6px 0 0",
+    color: "#94a3b8",
+    fontSize: "12px"
+};
+
+const modalActionsStyle = {
+    display: "flex",
+    gap: "10px"
+};
+
+const cancelButtonStyle = {
+    flex: 1,
+    height: "42px",
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    borderRadius: "7px",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: "500"
+};
+
+const saveButtonStyle = {
+    flex: 1,
+    height: "42px",
+    border: "none",
+    color: "#ffffff",
+    borderRadius: "7px",
+    fontSize: "14px",
+    fontWeight: "500"
 };
 
 export default Inventory;

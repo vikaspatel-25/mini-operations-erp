@@ -1,49 +1,49 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import pool from "./config/db.js";
-
 import authRoutes from "./routes/authRoutes.js";
+import cookieParser from "cookie-parser";
 import inventoryRoutes from "./routes/inventoryRoutes.js";
 import transferRoutes from "./routes/transferRoutes.js";
 import orderRoutes from "./routes/orderRoutes.js";
 import workOrderRoutes from "./routes/workOrderRoutes.js";
 
 const app = express();
+const PORT = process.env.PORT || 7002;
 
 app.use(
     cors({
         origin: process.env.CLIENT_URL,
         credentials: true
     })
-);
-
-app.use(express.json());
+);app.use(express.json());
 app.use(cookieParser());
-
 app.use("/api/auth", authRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/transfers", transferRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/work-orders", workOrderRoutes);
 
-app.get("/api/health", async (req, res) => {
-    try {
-        await pool.query("SELECT 1");
-
-        res.status(200).json({
-            success: true,
-            message: "ERP API is running"
-        });
-    } catch (error) {
-        console.error("Health check failed:", error.message);
-
-        res.status(500).json({
-            success: false,
-            message: "Database connection failed"
-        });
-    }
+app.get("/api/health", (req, res) => {
+    res.json({
+        success: true,
+        message: "ERP API is running"
+    });
 });
 
-export default app;
+const startServer = async () => {
+    try {
+        await pool.query("SELECT 1");
+        console.log("Database connected");
+
+        app.listen(PORT, () => {
+            console.log(`Server started at ${PORT}`);
+        });
+    } catch (error) {
+        console.error("Database connection failed:", error.message);
+        process.exit(1);
+    }
+};
+
+await startServer();

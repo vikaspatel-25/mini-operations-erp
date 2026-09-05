@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import {
     getTransferData,
@@ -8,14 +8,19 @@ import {
     receiveTransfer
 } from "@/services/transferService";
 
+import API_URL from "@/services/api";
+
 function Transfers() {
+    const navigate = useNavigate();
+
     const [transfers, setTransfers] = useState([]);
     const [locations, setLocations] = useState([]);
     const [items, setItems] = useState([]);
     const [batches, setBatches] = useState([]);
 
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [pageError, setPageError] = useState("");
+    const [formError, setFormError] = useState("");
     const [success, setSuccess] = useState("");
 
     const [transferNumber, setTransferNumber] = useState("");
@@ -27,27 +32,37 @@ function Transfers() {
 
     const [submitting, setSubmitting] = useState(false);
     const [actionId, setActionId] = useState(null);
+    const [copied, setCopied] = useState(false);
 
-    async function loadTransfers() {
+    const generateTransferNumber = () => {
+        const timestamp = Date.now();
+        const random = Math.floor(1000 + Math.random() * 9000);
+
+        return `TRF-${timestamp}-${random}`;
+    };
+
+    const loadTransfers = async () => {
         try {
             setLoading(true);
-            setError("");
+            setPageError("");
 
             const data = await getTransferData();
 
-            setTransfers(data.transfers);
-            setLocations(data.locations);
-            setItems(data.items);
-            setBatches(data.batches);
-
+            setTransfers(data.transfers || []);
+            setLocations(data.locations || []);
+            setItems(data.items || []);
+            setBatches(data.batches || []);
         } catch (error) {
-            setError(error.message);
+            setPageError(
+                error.message || "Failed to load transfers"
+            );
         } finally {
             setLoading(false);
         }
-    }
+    };
 
     useEffect(() => {
+        setTransferNumber(generateTransferNumber());
         loadTransfers();
     }, []);
 
@@ -55,291 +70,493 @@ function Transfers() {
         (batch) => batch.item_id === Number(itemId)
     );
 
-    function handleItemChange(value) {
+    const handleItemChange = (value) => {
         setItemId(value);
         setBatchId("");
-    }
-
-    async function handleCreateTransfer(event) {
-        event.preventDefault();
-
-        setError("");
+        setFormError("");
         setSuccess("");
-        setSubmitting(true);
+    };
+
+    const generateNewTransferNumber = () => {
+        setTransferNumber(generateTransferNumber());
+        setCopied(false);
+        setFormError("");
+        setSuccess("");
+    };
+
+    const resetForm = () => {
+        setTransferNumber(generateTransferNumber());
+        setSourceLocationId("");
+        setDestinationLocationId("");
+        setItemId("");
+        setBatchId("");
+        setQuantity("");
+        setCopied(false);
+    };
+
+    const copyTransferNumber = async () => {
+        if (!transferNumber) {
+            return;
+        }
 
         try {
+            await navigator.clipboard.writeText(transferNumber);
+
+            setCopied(true);
+
+            setTimeout(() => {
+                setCopied(false);
+            }, 1500);
+        } catch (error) {
+            console.error(
+                "Failed to copy transfer ID:",
+                error
+            );
+        }
+    };
+
+    const handleCreateTransfer = async (event) => {
+        event.preventDefault();
+
+        setFormError("");
+        setSuccess("");
+
+        const numericSourceLocationId =
+            Number(sourceLocationId);
+
+        const numericDestinationLocationId =
+            Number(destinationLocationId);
+
+        const numericItemId = Number(itemId);
+        const numericBatchId = Number(batchId);
+        const numericQuantity = Number(quantity);
+
+        if (!transferNumber) {
+            setFormError(
+                "Transfer ID could not be generated"
+            );
+            return;
+        }
+
+        if (!Number.isInteger(numericSourceLocationId)) {
+            setFormError("Please select a source location");
+            return;
+        }
+
+        if (
+            !Number.isInteger(
+                numericDestinationLocationId
+            )
+        ) {
+            setFormError(
+                "Please select a destination location"
+            );
+            return;
+        }
+
+        if (
+            numericSourceLocationId ===
+            numericDestinationLocationId
+        ) {
+            setFormError(
+                "Source and destination locations must be different"
+            );
+            return;
+        }
+
+        if (!Number.isInteger(numericItemId)) {
+            setFormError("Please select an item");
+            return;
+        }
+
+        if (!Number.isInteger(numericBatchId)) {
+            setFormError("Please select a batch");
+            return;
+        }
+
+        if (
+            !Number.isInteger(numericQuantity) ||
+            numericQuantity <= 0
+        ) {
+            setFormError(
+                "Quantity must be a positive integer"
+            );
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+
             await createTransfer({
                 transferNumber,
-                sourceLocationId: Number(sourceLocationId),
-                destinationLocationId: Number(destinationLocationId),
-                itemId: Number(itemId),
-                batchId: Number(batchId),
-                quantity: Number(quantity)
+                sourceLocationId: numericSourceLocationId,
+                destinationLocationId:
+                    numericDestinationLocationId,
+                itemId: numericItemId,
+                batchId: numericBatchId,
+                quantity: numericQuantity
             });
 
-            setSuccess("Transfer request created successfully.");
+            setSuccess(
+                "Transfer request created successfully."
+            );
 
-            setTransferNumber("");
-            setSourceLocationId("");
-            setDestinationLocationId("");
-            setItemId("");
-            setBatchId("");
-            setQuantity("");
+            resetForm();
 
-            await loadTransfers();
-
+            try {
+                await loadTransfers();
+            } catch (error) {
+                console.error(
+                    "Failed to refresh transfers:",
+                    error
+                );
+            }
         } catch (error) {
-            setError(error.message);
+            setFormError(
+                error.message || "Failed to create transfer"
+            );
         } finally {
             setSubmitting(false);
         }
-    }
+    };
 
-    async function handleDispatch(id) {
-        setError("");
+    const handleDispatch = async (id) => {
+        setFormError("");
         setSuccess("");
         setActionId(id);
 
         try {
             await dispatchTransfer(id);
 
-            setSuccess("Transfer dispatched successfully.");
+            setSuccess(
+                "Transfer dispatched successfully."
+            );
 
-            await loadTransfers();
-
+            try {
+                await loadTransfers();
+            } catch (error) {
+                console.error(
+                    "Failed to refresh transfers:",
+                    error
+                );
+            }
         } catch (error) {
-            setError(error.message);
+            setFormError(
+                error.message || "Failed to dispatch transfer"
+            );
         } finally {
             setActionId(null);
         }
-    }
+    };
 
-    async function handleReceive(id) {
-        setError("");
+    const handleReceive = async (id) => {
+        setFormError("");
         setSuccess("");
         setActionId(id);
 
         try {
             await receiveTransfer(id);
 
-            setSuccess("Transfer received successfully.");
+            setSuccess(
+                "Transfer received successfully."
+            );
 
-            await loadTransfers();
-
+            try {
+                await loadTransfers();
+            } catch (error) {
+                console.error(
+                    "Failed to refresh transfers:",
+                    error
+                );
+            }
         } catch (error) {
-            setError(error.message);
+            setFormError(
+                error.message || "Failed to receive transfer"
+            );
         } finally {
             setActionId(null);
         }
-    }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await fetch(`${API_URL}/auth/logout`, {
+                method: "POST",
+                credentials: "include"
+            });
+        } catch (error) {
+            console.error("Logout error:", error);
+        } finally {
+            navigate("/login");
+        }
+    };
 
     return (
-        <div
-            style={{
-                minHeight: "100vh",
-                background: "#f8fafc"
-            }}
-        >
-            <header
-                style={{
-                    background: "#ffffff",
-                    borderBottom: "1px solid #e2e8f0",
-                    padding: "16px 32px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center"
-                }}
-            >
-                <h2
-                    style={{
-                        margin: 0,
-                        fontSize: "20px"
-                    }}
-                >
-                    Mini Operations ERP
-                </h2>
-
-                <nav
-                    style={{
-                        display: "flex",
-                        gap: "20px"
-                    }}
-                >
-                    <Link to="/inventory">Inventory</Link>
-                    <Link to="/work-orders">Work Orders</Link>
-                    <Link to="/transfers">Transfers</Link>
-                    <Link to="/orders">Orders</Link>
-                </nav>
-            </header>
-
-            <main
-                style={{
-                    maxWidth: "1300px",
-                    margin: "0 auto",
-                    padding: "32px"
-                }}
-            >
-                <div style={{ marginBottom: "24px" }}>
-                    <h1
-                        style={{
-                            margin: "0 0 6px",
-                            fontSize: "26px"
-                        }}
+        <div style={pageStyle}>
+            <nav style={navStyle}>
+                <div style={navInnerStyle}>
+                    <Link
+                        to="/inventory"
+                        style={brandStyle}
                     >
+                        <span style={brandAccentStyle}>
+                            Operations
+                        </span>{" "}
+                        ERP
+                    </Link>
+
+                    <div style={navRightStyle}>
+                        <div style={navLinksStyle}>
+                            <Link
+                                to="/inventory"
+                                style={navLinkStyle}
+                            >
+                                Inventory
+                            </Link>
+
+                            <Link
+                                to="/work-orders"
+                                style={navLinkStyle}
+                            >
+                                Work Orders
+                            </Link>
+
+                            <Link
+                                to="/transfers"
+                                style={{
+                                    ...navLinkStyle,
+                                    ...activeNavLinkStyle
+                                }}
+                            >
+                                Transfers
+                            </Link>
+
+                            <Link
+                                to="/orders"
+                                style={navLinkStyle}
+                            >
+                                Customer Orders
+                            </Link>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            style={logoutButtonStyle}
+                        >
+                            Logout
+                        </button>
+                    </div>
+                </div>
+            </nav>
+
+            <main style={mainStyle}>
+                <div style={pageHeaderStyle}>
+                    <h1 style={titleStyle}>
                         Internal Transfers
                     </h1>
 
-                    <p
-                        style={{
-                            margin: 0,
-                            color: "#64748b"
-                        }}
-                    >
-                        Request, dispatch and receive stock transfers.
+                    <p style={subtitleStyle}>
+                        Request, dispatch and receive stock
+                        transfers.
                     </p>
                 </div>
 
-                {error && (
-                    <div
-                        style={{
-                            marginBottom: "20px",
-                            padding: "12px 16px",
-                            borderRadius: "6px",
-                            background: "#fee2e2",
-                            color: "#b91c1c",
-                            border: "1px solid #fecaca"
-                        }}
-                    >
-                        {error}
+                {pageError && (
+                    <div style={pageErrorStyle}>
+                        {pageError}
+                    </div>
+                )}
+
+                {formError && (
+                    <div style={formErrorStyle}>
+                        {formError}
                     </div>
                 )}
 
                 {success && (
-                    <div
-                        style={{
-                            marginBottom: "20px",
-                            padding: "12px 16px",
-                            borderRadius: "6px",
-                            background: "#dcfce7",
-                            color: "#166534",
-                            border: "1px solid #bbf7d0"
-                        }}
-                    >
+                    <div style={successStyle}>
                         {success}
                     </div>
                 )}
 
-                <section
-                    style={{
-                        background: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        padding: "24px",
-                        marginBottom: "28px"
-                    }}
-                >
-                    <h3
-                        style={{
-                            marginTop: 0,
-                            marginBottom: "20px"
-                        }}
-                    >
-                        Create Transfer
-                    </h3>
+                <section style={formCardStyle}>
+                    <div style={sectionHeaderStyle}>
+                        <h2 style={sectionTitleStyle}>
+                            Create Transfer
+                        </h2>
+                    </div>
 
                     <form onSubmit={handleCreateTransfer}>
-                        <div
-                            style={{
-                                display: "grid",
-                                gridTemplateColumns:
-                                    "repeat(3, 1fr)",
-                                gap: "16px"
-                            }}
-                        >
-                            <div>
-                                <label>Transfer ID</label>
+                        <div style={formGridStyle}>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>
+                                    Transfer ID
+                                </label>
 
-                                <input
-                                    value={transferNumber}
-                                    onChange={(e) =>
-                                        setTransferNumber(
-                                            e.target.value
-                                        )
+                                <div
+                                    style={
+                                        transferNumberWrapperStyle
                                     }
-                                    placeholder="TRF-001"
-                                    required
-                                    style={inputStyle}
-                                />
+                                >
+                                    <input
+                                        type="text"
+                                        value={transferNumber}
+                                        readOnly
+                                        style={
+                                            transferNumberInputStyle
+                                        }
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            copyTransferNumber
+                                        }
+                                        disabled={
+                                            submitting ||
+                                            !transferNumber
+                                        }
+                                        style={{
+                                            ...copyButtonStyle,
+                                            opacity:
+                                                submitting ||
+                                                !transferNumber
+                                                    ? 0.6
+                                                    : 1,
+                                            cursor:
+                                                submitting ||
+                                                !transferNumber
+                                                    ? "not-allowed"
+                                                    : "pointer"
+                                        }}
+                                    >
+                                        {copied
+                                            ? "Copied"
+                                            : "Copy"}
+                                    </button>
+                                </div>
+
+                                <p style={fieldHintStyle}>
+                                    Generated automatically and
+                                    cannot be changed.
+                                </p>
                             </div>
 
-                            <div>
-                                <label>Source Location</label>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>
+                                    Source Location
+                                </label>
 
                                 <select
                                     value={sourceLocationId}
-                                    onChange={(e) =>
+                                    onChange={(event) => {
                                         setSourceLocationId(
-                                            e.target.value
-                                        )
-                                    }
+                                            event.target.value
+                                        );
+                                        setFormError("");
+                                        setSuccess("");
+                                    }}
                                     required
-                                    style={inputStyle}
+                                    disabled={submitting}
+                                    style={{
+                                        ...inputStyle,
+                                        backgroundColor:
+                                            submitting
+                                                ? "#f8fafc"
+                                                : "#ffffff",
+                                        cursor: submitting
+                                            ? "not-allowed"
+                                            : "pointer"
+                                    }}
                                 >
                                     <option value="">
                                         Select source
                                     </option>
 
-                                    {locations.map((location) => (
-                                        <option
-                                            key={location.id}
-                                            value={location.id}
-                                        >
-                                            {location.name}
-                                        </option>
-                                    ))}
+                                    {locations.map(
+                                        (location) => (
+                                            <option
+                                                key={location.id}
+                                                value={location.id}
+                                            >
+                                                {location.name}
+                                            </option>
+                                        )
+                                    )}
                                 </select>
                             </div>
 
-                            <div>
-                                <label>Destination Location</label>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>
+                                    Destination Location
+                                </label>
 
                                 <select
-                                    value={destinationLocationId}
-                                    onChange={(e) =>
-                                        setDestinationLocationId(
-                                            e.target.value
-                                        )
+                                    value={
+                                        destinationLocationId
                                     }
+                                    onChange={(event) => {
+                                        setDestinationLocationId(
+                                            event.target.value
+                                        );
+                                        setFormError("");
+                                        setSuccess("");
+                                    }}
                                     required
-                                    style={inputStyle}
+                                    disabled={submitting}
+                                    style={{
+                                        ...inputStyle,
+                                        backgroundColor:
+                                            submitting
+                                                ? "#f8fafc"
+                                                : "#ffffff",
+                                        cursor: submitting
+                                            ? "not-allowed"
+                                            : "pointer"
+                                    }}
                                 >
                                     <option value="">
                                         Select destination
                                     </option>
 
-                                    {locations.map((location) => (
-                                        <option
-                                            key={location.id}
-                                            value={location.id}
-                                        >
-                                            {location.name}
-                                        </option>
-                                    ))}
+                                    {locations.map(
+                                        (location) => (
+                                            <option
+                                                key={location.id}
+                                                value={location.id}
+                                            >
+                                                {location.name}
+                                            </option>
+                                        )
+                                    )}
                                 </select>
                             </div>
 
-                            <div>
-                                <label>Item</label>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>
+                                    Item
+                                </label>
 
                                 <select
                                     value={itemId}
-                                    onChange={(e) =>
+                                    onChange={(event) =>
                                         handleItemChange(
-                                            e.target.value
+                                            event.target.value
                                         )
                                     }
                                     required
-                                    style={inputStyle}
+                                    disabled={submitting}
+                                    style={{
+                                        ...inputStyle,
+                                        backgroundColor:
+                                            submitting
+                                                ? "#f8fafc"
+                                                : "#ffffff",
+                                        cursor: submitting
+                                            ? "not-allowed"
+                                            : "pointer"
+                                    }}
                                 >
                                     <option value="">
                                         Select item
@@ -356,249 +573,371 @@ function Transfers() {
                                 </select>
                             </div>
 
-                            <div>
-                                <label>Batch</label>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>
+                                    Batch
+                                </label>
 
                                 <select
                                     value={batchId}
-                                    onChange={(e) =>
-                                        setBatchId(e.target.value)
-                                    }
+                                    onChange={(event) => {
+                                        setBatchId(
+                                            event.target.value
+                                        );
+                                        setFormError("");
+                                        setSuccess("");
+                                    }}
                                     required
-                                    disabled={!itemId}
-                                    style={inputStyle}
+                                    disabled={
+                                        !itemId ||
+                                        submitting
+                                    }
+                                    style={{
+                                        ...inputStyle,
+                                        backgroundColor:
+                                            !itemId ||
+                                            submitting
+                                                ? "#f8fafc"
+                                                : "#ffffff",
+                                        cursor:
+                                            !itemId ||
+                                            submitting
+                                                ? "not-allowed"
+                                                : "pointer"
+                                    }}
                                 >
                                     <option value="">
                                         Select batch
                                     </option>
 
-                                    {filteredBatches.map((batch) => (
-                                        <option
-                                            key={batch.id}
-                                            value={batch.id}
-                                        >
-                                            {batch.batch_number}
-                                        </option>
-                                    ))}
+                                    {filteredBatches.map(
+                                        (batch) => (
+                                            <option
+                                                key={batch.id}
+                                                value={batch.id}
+                                            >
+                                                {batch.batch_number}
+                                            </option>
+                                        )
+                                    )}
                                 </select>
                             </div>
 
-                            <div>
-                                <label>Quantity</label>
+                            <div style={fieldStyle}>
+                                <label style={labelStyle}>
+                                    Quantity
+                                </label>
 
                                 <input
                                     type="number"
                                     min="1"
+                                    step="1"
                                     value={quantity}
-                                    onChange={(e) =>
-                                        setQuantity(e.target.value)
-                                    }
+                                    onChange={(event) => {
+                                        setQuantity(
+                                            event.target.value
+                                        );
+                                        setFormError("");
+                                        setSuccess("");
+                                    }}
+                                    placeholder="Enter quantity"
                                     required
-                                    style={inputStyle}
+                                    disabled={submitting}
+                                    style={{
+                                        ...inputStyle,
+                                        backgroundColor:
+                                            submitting
+                                                ? "#f8fafc"
+                                                : "#ffffff"
+                                    }}
                                 />
                             </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={submitting}
-                            style={buttonStyle}
-                        >
-                            {submitting
-                                ? "Creating..."
-                                : "Create Transfer"}
-                        </button>
+                        <div style={formActionsStyle}>
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                style={{
+                                    ...buttonStyle,
+                                    backgroundColor: submitting
+                                        ? "#94a3b8"
+                                        : "#2563eb",
+                                    cursor: submitting
+                                        ? "not-allowed"
+                                        : "pointer"
+                                }}
+                            >
+                                {submitting
+                                    ? "Creating..."
+                                    : "Create Transfer"}
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={
+                                    generateNewTransferNumber
+                                }
+                                disabled={submitting}
+                                style={{
+                                    ...newIdButtonStyle,
+                                    opacity: submitting
+                                        ? 0.6
+                                        : 1,
+                                    cursor: submitting
+                                        ? "not-allowed"
+                                        : "pointer"
+                                }}
+                            >
+                                Generate New ID
+                            </button>
+                        </div>
                     </form>
                 </section>
 
-                <section
-                    style={{
-                        background: "#ffffff",
-                        border: "1px solid #e2e8f0",
-                        borderRadius: "8px",
-                        overflow: "hidden"
-                    }}
-                >
-                    <div
-                        style={{
-                            padding: "20px 24px",
-                            borderBottom:
-                                "1px solid #e2e8f0"
-                        }}
-                    >
-                        <h3 style={{ margin: 0 }}>
+                <section style={tableCardStyle}>
+                    <div style={tableHeaderStyle}>
+                        <h2 style={sectionTitleStyle}>
                             Transfer History
-                        </h3>
+                        </h2>
                     </div>
 
                     {loading ? (
-                        <p
-                            style={{
-                                padding: "24px",
-                                color: "#64748b"
-                            }}
-                        >
+                        <div style={messageStyle}>
                             Loading transfers...
-                        </p>
+                        </div>
                     ) : transfers.length === 0 ? (
-                        <p
-                            style={{
-                                padding: "24px",
-                                color: "#64748b"
-                            }}
-                        >
+                        <div style={messageStyle}>
                             No transfers found.
-                        </p>
+                        </div>
                     ) : (
-                        <div style={{ overflowX: "auto" }}>
-                            <table
-                                style={{
-                                    width: "100%",
-                                    borderCollapse:
-                                        "collapse"
-                                }}
-                            >
+                        <div style={tableScrollStyle}>
+                            <table style={tableStyle}>
                                 <thead>
                                     <tr>
-                                        <th style={thStyle}>
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "190px"
+                                            }}
+                                        >
                                             Transfer
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "180px"
+                                            }}
+                                        >
                                             Source
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "200px"
+                                            }}
+                                        >
                                             Destination
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "280px"
+                                            }}
+                                        >
                                             Item
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "180px"
+                                            }}
+                                        >
                                             Batch
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "120px",
+                                                textAlign: "right"
+                                            }}
+                                        >
                                             Quantity
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "140px"
+                                            }}
+                                        >
                                             Status
                                         </th>
-                                        <th style={thStyle}>
+
+                                        <th
+                                            style={{
+                                                ...thStyle,
+                                                minWidth: "150px"
+                                            }}
+                                        >
                                             Action
                                         </th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
-                                    {transfers.map((transfer) => (
-                                        <tr key={transfer.id}>
-                                            <td style={tdStyle}>
-                                                {
-                                                    transfer.transfer_number
-                                                }
-                                            </td>
+                                    {transfers.map(
+                                        (transfer) => (
+                                            <tr
+                                                key={transfer.id}
+                                                style={rowStyle}
+                                            >
+                                                <td style={tdStyle}>
+                                                    <span
+                                                        style={
+                                                            transferNumberStyle
+                                                        }
+                                                    >
+                                                        {
+                                                            transfer.transfer_number
+                                                        }
+                                                    </span>
+                                                </td>
 
-                                            <td style={tdStyle}>
-                                                {
-                                                    transfer.source_location
-                                                }
-                                            </td>
+                                                <td style={tdStyle}>
+                                                    {
+                                                        transfer.source_location
+                                                    }
+                                                </td>
 
-                                            <td style={tdStyle}>
-                                                {
-                                                    transfer.destination_location
-                                                }
-                                            </td>
+                                                <td style={tdStyle}>
+                                                    {
+                                                        transfer.destination_location
+                                                    }
+                                                </td>
 
-                                            <td style={tdStyle}>
-                                                {transfer.item}
-                                            </td>
+                                                <td style={tdStyle}>
+                                                    {transfer.item}
+                                                </td>
 
-                                            <td style={tdStyle}>
-                                                {transfer.batch}
-                                            </td>
+                                                <td style={tdStyle}>
+                                                    {transfer.batch}
+                                                </td>
 
-                                            <td style={tdStyle}>
-                                                {transfer.quantity}
-                                            </td>
-
-                                            <td style={tdStyle}>
-                                                <span
+                                                <td
                                                     style={{
-                                                        padding:
-                                                            "4px 8px",
-                                                        borderRadius:
-                                                            "4px",
-                                                        fontSize:
-                                                            "12px",
-                                                        background:
-                                                            "#f1f5f9"
+                                                        ...tdStyle,
+                                                        textAlign:
+                                                            "right",
+                                                        fontWeight:
+                                                            "500"
                                                     }}
                                                 >
                                                     {
-                                                        transfer.status
+                                                        transfer.quantity
                                                     }
-                                                </span>
-                                            </td>
+                                                </td>
 
-                                            <td style={tdStyle}>
-                                                {transfer.status ===
-                                                    "REQUESTED" && (
-                                                    <button
-                                                        onClick={() =>
-                                                            handleDispatch(
-                                                                transfer.id
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            actionId ===
-                                                            transfer.id
-                                                        }
-                                                        style={
-                                                            actionButtonStyle
-                                                        }
-                                                    >
-                                                        {actionId ===
-                                                        transfer.id
-                                                            ? "Processing..."
-                                                            : "Dispatch"}
-                                                    </button>
-                                                )}
-
-                                                {transfer.status ===
-                                                    "DISPATCHED" && (
-                                                    <button
-                                                        onClick={() =>
-                                                            handleReceive(
-                                                                transfer.id
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            actionId ===
-                                                            transfer.id
-                                                        }
-                                                        style={
-                                                            actionButtonStyle
-                                                        }
-                                                    >
-                                                        {actionId ===
-                                                        transfer.id
-                                                            ? "Processing..."
-                                                            : "Receive"}
-                                                    </button>
-                                                )}
-
-                                                {transfer.status ===
-                                                    "RECEIVED" && (
+                                                <td style={tdStyle}>
                                                     <span
-                                                        style={{
-                                                            color: "#64748b"
-                                                        }}
+                                                        style={
+                                                            statusStyle
+                                                        }
                                                     >
-                                                        Completed
+                                                        {
+                                                            transfer.status
+                                                        }
                                                     </span>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                </td>
+
+                                                <td style={tdStyle}>
+                                                    {transfer.status ===
+                                                        "REQUESTED" && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleDispatch(
+                                                                    transfer.id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                actionId ===
+                                                                transfer.id
+                                                            }
+                                                            style={{
+                                                                ...actionButtonStyle,
+                                                                opacity:
+                                                                    actionId ===
+                                                                    transfer.id
+                                                                        ? 0.6
+                                                                        : 1,
+                                                                cursor:
+                                                                    actionId ===
+                                                                    transfer.id
+                                                                        ? "not-allowed"
+                                                                        : "pointer"
+                                                            }}
+                                                        >
+                                                            {actionId ===
+                                                            transfer.id
+                                                                ? "Processing..."
+                                                                : "Dispatch"}
+                                                        </button>
+                                                    )}
+
+                                                    {transfer.status ===
+                                                        "DISPATCHED" && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                handleReceive(
+                                                                    transfer.id
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                actionId ===
+                                                                transfer.id
+                                                            }
+                                                            style={{
+                                                                ...actionButtonStyle,
+                                                                opacity:
+                                                                    actionId ===
+                                                                    transfer.id
+                                                                        ? 0.6
+                                                                        : 1,
+                                                                cursor:
+                                                                    actionId ===
+                                                                    transfer.id
+                                                                        ? "not-allowed"
+                                                                        : "pointer"
+                                                            }}
+                                                        >
+                                                            {actionId ===
+                                                            transfer.id
+                                                                ? "Processing..."
+                                                                : "Receive"}
+                                                        </button>
+                                                    )}
+
+                                                    {transfer.status ===
+                                                        "RECEIVED" && (
+                                                        <span
+                                                            style={
+                                                                completedStyle
+                                                            }
+                                                        >
+                                                            Completed
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -609,47 +948,340 @@ function Transfers() {
     );
 }
 
-const inputStyle = {
-    width: "100%",
-    marginTop: "6px",
-    padding: "9px 10px",
-    border: "1px solid #cbd5e1",
-    borderRadius: "5px",
-    fontSize: "14px",
-    background: "#ffffff"
+const pageStyle = {
+    minHeight: "100vh",
+    backgroundColor: "#f8fafc"
 };
 
-const buttonStyle = {
-    marginTop: "20px",
-    padding: "10px 18px",
-    border: "none",
-    borderRadius: "5px",
-    background: "#0f172a",
-    color: "#ffffff",
+const navStyle = {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    borderBottom: "1px solid #e2e8f0"
+};
+
+const navInnerStyle = {
+    width: "100%",
+    maxWidth: "1500px",
+    margin: "0 auto",
+    padding: "0 40px",
+    minHeight: "64px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "24px",
+    flexWrap: "wrap"
+};
+
+const brandStyle = {
+    textDecoration: "none",
+    fontSize: "18px",
+    fontWeight: "700",
+    color: "#0f172a",
+    letterSpacing: "-0.2px",
+    whiteSpace: "nowrap"
+};
+
+const brandAccentStyle = {
+    color: "#2563eb"
+};
+
+const navRightStyle = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "24px",
+    flexWrap: "wrap"
+};
+
+const navLinksStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "24px",
+    flexWrap: "wrap"
+};
+
+const navLinkStyle = {
+    textDecoration: "none",
+    color: "#64748b",
+    fontSize: "14px",
+    fontWeight: "500",
+    padding: "23px 0",
+    whiteSpace: "nowrap"
+};
+
+const activeNavLinkStyle = {
+    color: "#2563eb",
+    fontWeight: "600"
+};
+
+const logoutButtonStyle = {
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    borderRadius: "6px",
+    padding: "7px 14px",
     cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "500",
+    whiteSpace: "nowrap"
+};
+
+const mainStyle = {
+    width: "100%",
+    maxWidth: "1500px",
+    margin: "0 auto",
+    padding: "40px 40px 60px"
+};
+
+const pageHeaderStyle = {
+    marginBottom: "26px"
+};
+
+const titleStyle = {
+    margin: 0,
+    fontSize: "28px",
+    fontWeight: "600",
+    color: "#0f172a"
+};
+
+const subtitleStyle = {
+    margin: "7px 0 0",
+    color: "#64748b",
+    fontSize: "14px",
+    lineHeight: "1.5"
+};
+
+const pageErrorStyle = {
+    marginBottom: "20px",
+    padding: "12px 16px",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "8px",
+    color: "#dc2626",
     fontSize: "14px"
 };
 
-const actionButtonStyle = {
-    padding: "7px 12px",
+const formErrorStyle = {
+    marginBottom: "20px",
+    padding: "11px 14px",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "7px",
+    color: "#dc2626",
+    fontSize: "13px",
+    lineHeight: "1.4"
+};
+
+const successStyle = {
+    marginBottom: "20px",
+    padding: "12px 16px",
+    backgroundColor: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+    borderRadius: "8px",
+    color: "#166534",
+    fontSize: "14px"
+};
+
+const formCardStyle = {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "10px",
+    padding: "26px",
+    marginBottom: "28px"
+};
+
+const sectionHeaderStyle = {
+    marginBottom: "22px"
+};
+
+const sectionTitleStyle = {
+    margin: 0,
+    fontSize: "17px",
+    fontWeight: "600",
+    color: "#0f172a"
+};
+
+const formGridStyle = {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "20px"
+};
+
+const fieldStyle = {
+    minWidth: 0
+};
+
+const labelStyle = {
+    display: "block",
+    marginBottom: "7px",
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#334155"
+};
+
+const inputStyle = {
+    width: "100%",
+    height: "42px",
+    padding: "0 12px",
     border: "1px solid #cbd5e1",
-    borderRadius: "5px",
-    background: "#ffffff",
-    cursor: "pointer",
-    fontSize: "13px"
+    borderRadius: "7px",
+    fontSize: "14px",
+    color: "#0f172a",
+    outline: "none"
+};
+
+const transferNumberWrapperStyle = {
+    display: "flex",
+    width: "100%"
+};
+
+const transferNumberInputStyle = {
+    flex: 1,
+    minWidth: 0,
+    height: "42px",
+    padding: "0 12px",
+    border: "1px solid #cbd5e1",
+    borderRight: "none",
+    borderRadius: "7px 0 0 7px",
+    backgroundColor: "#f8fafc",
+    color: "#475569",
+    fontSize: "13px",
+    outline: "none"
+};
+
+const copyButtonStyle = {
+    height: "42px",
+    padding: "0 14px",
+    border: "1px solid #cbd5e1",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    borderRadius: "0 7px 7px 0",
+    fontSize: "13px",
+    fontWeight: "500",
+    flexShrink: 0
+};
+
+const fieldHintStyle = {
+    margin: "6px 0 0",
+    color: "#94a3b8",
+    fontSize: "12px"
+};
+
+const formActionsStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    marginTop: "22px",
+    flexWrap: "wrap"
+};
+
+const buttonStyle = {
+    minWidth: "145px",
+    height: "42px",
+    padding: "0 18px",
+    border: "none",
+    borderRadius: "7px",
+    color: "#ffffff",
+    fontSize: "14px",
+    fontWeight: "500"
+};
+
+const newIdButtonStyle = {
+    height: "42px",
+    padding: "0 16px",
+    border: "1px solid #cbd5e1",
+    borderRadius: "7px",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    fontSize: "14px",
+    fontWeight: "500"
+};
+
+const tableCardStyle = {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "10px",
+    overflow: "hidden"
+};
+
+const tableHeaderStyle = {
+    padding: "20px 24px",
+    borderBottom: "1px solid #e2e8f0"
+};
+
+const tableScrollStyle = {
+    width: "100%",
+    overflowX: "auto",
+    WebkitOverflowScrolling: "touch"
+};
+
+const tableStyle = {
+    width: "100%",
+    minWidth: "1350px",
+    borderCollapse: "collapse",
+    fontSize: "14px"
 };
 
 const thStyle = {
     textAlign: "left",
-    padding: "12px 16px",
-    background: "#f8fafc",
+    padding: "15px 20px",
+    backgroundColor: "#f8fafc",
     borderBottom: "1px solid #e2e8f0",
-    fontSize: "13px"
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: "600",
+    whiteSpace: "nowrap"
+};
+
+const rowStyle = {
+    borderBottom: "1px solid #f1f5f9"
 };
 
 const tdStyle = {
-    padding: "12px 16px",
+    padding: "16px 20px",
     borderBottom: "1px solid #f1f5f9",
+    color: "#334155",
+    fontSize: "14px",
+    whiteSpace: "nowrap"
+};
+
+const transferNumberStyle = {
+    fontWeight: "500",
+    color: "#0f172a"
+};
+
+const statusStyle = {
+    display: "inline-block",
+    padding: "4px 8px",
+    borderRadius: "5px",
+    backgroundColor: "#f1f5f9",
+    color: "#475569",
+    fontSize: "12px",
+    fontWeight: "500"
+};
+
+const actionButtonStyle = {
+    height: "34px",
+    padding: "0 13px",
+    border: "1px solid #cbd5e1",
+    borderRadius: "6px",
+    backgroundColor: "#ffffff",
+    color: "#334155",
+    fontSize: "13px",
+    fontWeight: "500"
+};
+
+const completedStyle = {
+    color: "#64748b",
+    fontSize: "13px"
+};
+
+const messageStyle = {
+    padding: "50px 24px",
+    textAlign: "center",
+    color: "#64748b",
     fontSize: "14px"
 };
 
