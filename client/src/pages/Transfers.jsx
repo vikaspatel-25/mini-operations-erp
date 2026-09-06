@@ -143,11 +143,7 @@ function Transfers() {
             return;
         }
 
-        if (
-            !Number.isInteger(
-                numericDestinationLocationId
-            )
-        ) {
+        if (!Number.isInteger(numericDestinationLocationId)) {
             setFormError(
                 "Please select a destination location"
             );
@@ -764,7 +760,14 @@ function Transfers() {
                                             style={{
                                                 ...thStyle,
                                                 minWidth: "120px",
-                                                textAlign: "right"
+                                                textAlign: "right",
+                                                position: "sticky",
+                                                right: "290px",
+                                                zIndex: 2,
+                                                backgroundColor:
+                                                    "#f8fafc",
+                                                boxShadow:
+                                                    "-4px 0 8px rgba(15, 23, 42, 0.06)"
                                             }}
                                         >
                                             Quantity
@@ -773,7 +776,12 @@ function Transfers() {
                                         <th
                                             style={{
                                                 ...thStyle,
-                                                minWidth: "140px"
+                                                minWidth: "140px",
+                                                position: "sticky",
+                                                right: "150px",
+                                                zIndex: 2,
+                                                backgroundColor:
+                                                    "#f8fafc"
                                             }}
                                         >
                                             Status
@@ -782,7 +790,14 @@ function Transfers() {
                                         <th
                                             style={{
                                                 ...thStyle,
-                                                minWidth: "150px"
+                                                minWidth: "150px",
+                                                position: "sticky",
+                                                right: 0,
+                                                zIndex: 2,
+                                                backgroundColor:
+                                                    "#f8fafc",
+                                                boxShadow:
+                                                    "-4px 0 8px rgba(15, 23, 42, 0.06)"
                                             }}
                                         >
                                             Action
@@ -832,10 +847,17 @@ function Transfers() {
                                                 <td
                                                     style={{
                                                         ...tdStyle,
+                                                        minWidth: "120px",
                                                         textAlign:
                                                             "right",
                                                         fontWeight:
-                                                            "500"
+                                                            "500",
+                                                        position:
+                                                            "sticky",
+                                                        right: "290px",
+                                                        zIndex: 1,
+                                                        backgroundColor:
+                                                            "#ffffff"
                                                     }}
                                                 >
                                                     {
@@ -843,7 +865,18 @@ function Transfers() {
                                                     }
                                                 </td>
 
-                                                <td style={tdStyle}>
+                                                <td
+                                                    style={{
+                                                        ...tdStyle,
+                                                        minWidth: "140px",
+                                                        position:
+                                                            "sticky",
+                                                        right: "150px",
+                                                        zIndex: 1,
+                                                        backgroundColor:
+                                                            "#ffffff"
+                                                    }}
+                                                >
                                                     <span
                                                         style={
                                                             statusStyle
@@ -855,7 +888,20 @@ function Transfers() {
                                                     </span>
                                                 </td>
 
-                                                <td style={tdStyle}>
+                                                <td
+                                                    style={{
+                                                        ...tdStyle,
+                                                        minWidth: "150px",
+                                                        position:
+                                                            "sticky",
+                                                        right: 0,
+                                                        zIndex: 1,
+                                                        backgroundColor:
+                                                            "#ffffff",
+                                                        boxShadow:
+                                                            "-4px 0 8px rgba(15, 23, 42, 0.06)"
+                                                    }}
+                                                >
                                                     {transfer.status ===
                                                         "REQUESTED" && (
                                                         <button

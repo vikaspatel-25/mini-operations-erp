@@ -20,7 +20,7 @@ export async function getInventory() {
             ON i.location_id = l.id
         JOIN batches b
             ON i.batch_id = b.id
-        ORDER BY i.id;
+        ORDER BY it.name;
     `);
 
   return result.rows;

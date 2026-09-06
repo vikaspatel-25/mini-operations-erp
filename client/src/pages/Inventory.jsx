@@ -13,6 +13,8 @@ function Inventory() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
+    const [selectedLocation, setSelectedLocation] = useState("Mumbai");
+
     const [selectedInventory, setSelectedInventory] = useState(null);
     const [quantity, setQuantity] = useState("");
     const [transactionId, setTransactionId] = useState("");
@@ -38,6 +40,17 @@ function Inventory() {
     useEffect(() => {
         loadInventory();
     }, []);
+
+    const locations = [
+        ...new Set(inventory.map((row) => row.location))
+    ];
+
+    const filteredInventory =
+        selectedLocation === ""
+            ? inventory
+            : inventory.filter(
+                  (row) => row.location === selectedLocation
+              );
 
     const generateTransactionId = () => {
         const timestamp = Date.now();
@@ -95,15 +108,14 @@ function Inventory() {
                 transactionId
             );
 
-            // Close the dialog immediately after
-            // receiving a successful backend response.
-            closeAdjustModal();
+            setSelectedInventory(null);
+            setQuantity("");
+            setTransactionId("");
+            setCopied(false);
+            setModalError("");
 
-            // Refresh inventory separately.
             await loadInventory();
         } catch (error) {
-            // Keep the modal open when the backend rejects
-            // the adjustment.
             setModalError(error.message);
         } finally {
             setAdjusting(false);
@@ -205,6 +217,33 @@ function Inventory() {
                     </div>
                 )}
 
+                <div style={filterContainerStyle}>
+                    <label style={filterLabelStyle}>
+                        Location
+                    </label>
+
+                    <select
+                        value={selectedLocation}
+                        onChange={(event) =>
+                            setSelectedLocation(event.target.value)
+                        }
+                        style={filterSelectStyle}
+                    >
+                        <option value="">
+                            All Locations
+                        </option>
+
+                        {locations.map((location) => (
+                            <option
+                                key={location}
+                                value={location}
+                            >
+                                {location}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
                 <div style={tableContainerStyle}>
                     {loading ? (
                         <div style={messageStyle}>
@@ -213,6 +252,10 @@ function Inventory() {
                     ) : inventory.length === 0 ? (
                         <div style={messageStyle}>
                             No inventory found.
+                        </div>
+                    ) : filteredInventory.length === 0 ? (
+                        <div style={messageStyle}>
+                            No inventory found for this location.
                         </div>
                     ) : (
                         <div style={tableScrollStyle}>
@@ -274,7 +317,7 @@ function Inventory() {
                                 </thead>
 
                                 <tbody>
-                                    {inventory.map((row) => (
+                                    {filteredInventory.map((row) => (
                                         <tr
                                             key={row.id}
                                             style={rowStyle}
@@ -640,6 +683,32 @@ const errorCloseButtonStyle = {
     fontSize: "20px",
     lineHeight: 1,
     padding: "0 2px",
+    cursor: "pointer"
+};
+
+const filterContainerStyle = {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    marginBottom: "18px"
+};
+
+const filterLabelStyle = {
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#334155"
+};
+
+const filterSelectStyle = {
+    height: "40px",
+    minWidth: "180px",
+    padding: "0 12px",
+    border: "1px solid #cbd5e1",
+    borderRadius: "7px",
+    backgroundColor: "#ffffff",
+    color: "#0f172a",
+    fontSize: "14px",
+    outline: "none",
     cursor: "pointer"
 };
 
