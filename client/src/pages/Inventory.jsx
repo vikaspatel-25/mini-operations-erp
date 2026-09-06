@@ -18,6 +18,7 @@ function Inventory() {
     const [transactionId, setTransactionId] = useState("");
     const [adjusting, setAdjusting] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [modalError, setModalError] = useState("");
 
     const loadInventory = async () => {
         try {
@@ -50,14 +51,20 @@ function Inventory() {
         setQuantity("");
         setTransactionId(generateTransactionId());
         setCopied(false);
+        setModalError("");
         setError("");
     };
 
     const closeAdjustModal = () => {
+        if (adjusting) {
+            return;
+        }
+
         setSelectedInventory(null);
         setQuantity("");
         setTransactionId("");
         setCopied(false);
+        setModalError("");
     };
 
     const copyTransactionId = async () => {
@@ -79,6 +86,7 @@ function Inventory() {
 
         try {
             setAdjusting(true);
+            setModalError("");
             setError("");
 
             await adjustInventory(
@@ -87,11 +95,16 @@ function Inventory() {
                 transactionId
             );
 
+            // Close the dialog immediately after
+            // receiving a successful backend response.
             closeAdjustModal();
 
+            // Refresh inventory separately.
             await loadInventory();
         } catch (error) {
-            setError(error.message);
+            // Keep the modal open when the backend rejects
+            // the adjustment.
+            setModalError(error.message);
         } finally {
             setAdjusting(false);
         }
@@ -179,7 +192,16 @@ function Inventory() {
 
                 {error && (
                     <div style={errorStyle}>
-                        {error}
+                        <span>{error}</span>
+
+                        <button
+                            type="button"
+                            onClick={() => setError("")}
+                            style={errorCloseButtonStyle}
+                            aria-label="Dismiss error"
+                        >
+                            ×
+                        </button>
                     </div>
                 )}
 
@@ -335,6 +357,7 @@ function Inventory() {
                                                 }}
                                             >
                                                 <button
+                                                    type="button"
                                                     onClick={() =>
                                                         openAdjustModal(row)
                                                     }
@@ -353,16 +376,55 @@ function Inventory() {
             </main>
 
             {selectedInventory && (
-                <div style={modalOverlayStyle}>
+                <div
+                    style={modalOverlayStyle}
+                    onClick={(event) => {
+                        if (
+                            event.target === event.currentTarget &&
+                            !adjusting
+                        ) {
+                            closeAdjustModal();
+                        }
+                    }}
+                >
                     <div style={modalStyle}>
-                        <h2 style={modalTitleStyle}>
-                            Adjust Inventory
-                        </h2>
+                        <div style={modalHeaderStyle}>
+                            <div>
+                                <h2 style={modalTitleStyle}>
+                                    Adjust Inventory
+                                </h2>
 
-                        <p style={modalSubtitleStyle}>
-                            {selectedInventory.item} -{" "}
-                            {selectedInventory.location}
-                        </p>
+                                <p style={modalSubtitleStyle}>
+                                    {selectedInventory.item} -{" "}
+                                    {selectedInventory.location}
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={closeAdjustModal}
+                                disabled={adjusting}
+                                style={modalCloseButtonStyle}
+                                aria-label="Close dialog"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {modalError && (
+                            <div style={modalErrorStyle}>
+                                <span>{modalError}</span>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setModalError("")}
+                                    style={modalErrorCloseButtonStyle}
+                                    aria-label="Dismiss error"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        )}
 
                         <form onSubmit={handleAdjust}>
                             <div style={fieldStyle}>
@@ -380,6 +442,7 @@ function Inventory() {
                                     }
                                     placeholder="Use negative to remove stock"
                                     required
+                                    disabled={adjusting}
                                     style={inputStyle}
                                 />
                             </div>
@@ -405,9 +468,12 @@ function Inventory() {
                                     <button
                                         type="button"
                                         onClick={copyTransactionId}
+                                        disabled={adjusting}
                                         style={copyButtonStyle}
                                     >
-                                        {copied ? "Copied" : "Copy"}
+                                        {copied
+                                            ? "Copied"
+                                            : "Copy"}
                                     </button>
                                 </div>
 
@@ -421,7 +487,14 @@ function Inventory() {
                                 <button
                                     type="button"
                                     onClick={closeAdjustModal}
-                                    style={cancelButtonStyle}
+                                    disabled={adjusting}
+                                    style={{
+                                        ...cancelButtonStyle,
+                                        cursor: adjusting
+                                            ? "not-allowed"
+                                            : "pointer",
+                                        opacity: adjusting ? 0.6 : 1
+                                    }}
                                 >
                                     Cancel
                                 </button>
@@ -553,7 +626,21 @@ const errorStyle = {
     border: "1px solid #fecaca",
     borderRadius: "8px",
     color: "#dc2626",
-    fontSize: "14px"
+    fontSize: "14px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px"
+};
+
+const errorCloseButtonStyle = {
+    border: "none",
+    background: "transparent",
+    color: "#dc2626",
+    fontSize: "20px",
+    lineHeight: 1,
+    padding: "0 2px",
+    cursor: "pointer"
 };
 
 const tableContainerStyle = {
@@ -635,6 +722,13 @@ const modalStyle = {
     boxShadow: "0 12px 35px rgba(0, 0, 0, 0.14)"
 };
 
+const modalHeaderStyle = {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: "16px"
+};
+
 const modalTitleStyle = {
     margin: "0 0 6px",
     fontSize: "20px",
@@ -646,6 +740,40 @@ const modalSubtitleStyle = {
     margin: "0 0 24px",
     color: "#64748b",
     fontSize: "14px"
+};
+
+const modalCloseButtonStyle = {
+    border: "none",
+    background: "transparent",
+    color: "#64748b",
+    fontSize: "24px",
+    lineHeight: 1,
+    padding: "0",
+    cursor: "pointer"
+};
+
+const modalErrorStyle = {
+    marginBottom: "18px",
+    padding: "11px 13px",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+    borderRadius: "7px",
+    color: "#dc2626",
+    fontSize: "13px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px"
+};
+
+const modalErrorCloseButtonStyle = {
+    border: "none",
+    background: "transparent",
+    color: "#dc2626",
+    fontSize: "18px",
+    lineHeight: 1,
+    padding: "0",
+    cursor: "pointer"
 };
 
 const fieldStyle = {
